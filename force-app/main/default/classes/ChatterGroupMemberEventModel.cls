@@ -18,31 +18,42 @@ public with sharing class ChatterGroupMemberEventModel {
             if(!GroupToMember.containsKey(chattername)) newGroups.add(new Group( Name = chattername, Type = 'Regular'));
         }
 
-        if (!newGroups.isEmpty()) {
-            insert newGroups;
-        }
-
-        //add new groups to GroupToMember
-        for (Group gtm : [SELECT Id, Name FROM Group WHERE Id IN : newGroups]) GroupToMember.put(gtm.Name, gtm);
-
-        for (ChatterGroupMemberEvent__e event : (List<ChatterGroupMemberEvent__e>)triggerRecords) {
-            // if action = remove so the group exsites and then we can just add to the remove list 
-            if(event.Action__c == 'Add') {
-                if(GroupToMember.containsKey(event.ChatterGroupName__c)) {
-                    groupMembersToAdd.add(new GroupMember(GroupId = GroupToMember.get(event.ChatterGroupName__c).Id, UserOrGroupId = event.UserId__c));
-                }
+        try {
+            if (!newGroups.isEmpty()) {
+                insert newGroups;
             }
-            else groupMembersToRemove.put(event.UserId__c, GroupToMember.get(event.ChatterGroupName__c).Id);
+
+            //add new groups to GroupToMember
+            for (Group gtm : [SELECT Id, Name FROM Group WHERE Id IN : newGroups]) GroupToMember.put(gtm.Name, gtm);
+
+            for (ChatterGroupMemberEvent__e event : (List<ChatterGroupMemberEvent__e>)triggerRecords) {
+                System.debug('from event ' + event.Action__c + '  ' + event);
+                if(event.Action__c == 'Add') {
+                    if(GroupToMember.containsKey(event.ChatterGroupName__c)) {
+                        groupMembersToAdd.add(new GroupMember(GroupId = GroupToMember.get(event.ChatterGroupName__c)?.Id, UserOrGroupId = event.UserId__c));
+                    }
+                }
+                // if action = remove so the group exsites and then we can just add to the remove list
+                else groupMembersToRemove.put(event.UserId__c, GroupToMember.get(event.ChatterGroupName__c)?.Id);
+            }
+        } catch (Exception ex) {
+            System.debug('Error inserting new group ' + ex.getMessage() + ' ' + ex.getStackTraceString());
         }
 
-        if (!groupMembersToAdd.isEmpty()) {
-            insert groupMembersToAdd;
+        try {
+            if (!groupMembersToAdd.isEmpty()) insert groupMembersToAdd;
+        } catch (Exception ex) {
+            System.debug('Error inserting group members ' + ex.getMessage() + ' ' + ex.getStackTraceString());
         }
 
-        if (!groupMembersToRemove.isEmpty()) {
-            List<GroupMember> listGM  = [ SELECT Id FROM GroupMember WHERE UserOrGroupID IN :groupMembersToRemove.keyset() and GroupId  IN : groupMembersToRemove.values()];
-            delete listGM;
-        }
+        try {
+            if (!groupMembersToRemove.isEmpty()) {
+                List<GroupMember> listGM  = [ SELECT Id FROM GroupMember WHERE UserOrGroupID IN :groupMembersToRemove.keyset() and GroupId  IN : groupMembersToRemove.values()];
+                delete listGM;
+            }
+        } catch (Exception ex) {
+            System.debug('Error deleting group members ' + ex.getMessage() + ' ' + ex.getStackTraceString());
+        }    
     }
 }
        
