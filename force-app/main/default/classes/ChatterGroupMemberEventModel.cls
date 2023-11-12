@@ -27,7 +27,6 @@ public with sharing class ChatterGroupMemberEventModel {
             for (Group gtm : [SELECT Id, Name FROM Group WHERE Id IN : newGroups]) GroupToMember.put(gtm.Name, gtm);
 
             for (ChatterGroupMemberEvent__e event : (List<ChatterGroupMemberEvent__e>)triggerRecords) {
-                System.debug('from event ' + event.Action__c + '  ' + event);
                 if(event.Action__c == 'Add') {
                     if(GroupToMember.containsKey(event.ChatterGroupName__c)) {
                         groupMembersToAdd.add(new GroupMember(GroupId = GroupToMember.get(event.ChatterGroupName__c)?.Id, UserOrGroupId = event.UserId__c));
@@ -48,8 +47,12 @@ public with sharing class ChatterGroupMemberEventModel {
 
         try {
             if (!groupMembersToRemove.isEmpty()) {
-                List<GroupMember> listGM  = [ SELECT Id FROM GroupMember WHERE UserOrGroupID IN :groupMembersToRemove.keyset() and GroupId  IN : groupMembersToRemove.values()];
-                delete listGM;
+                List<GroupMember> listGM  = [SELECT Id, UserOrGroupId, GroupId FROM GroupMember WHERE UserOrGroupID IN :groupMembersToRemove.keyset() and GroupId  IN : groupMembersToRemove.values()];
+                List<GroupMember> gmToRemove = new List<GroupMember>();
+                for(GroupMember gm : listGM){
+                    if( gm.GroupId == groupMembersToRemove.get(gm.UserOrGroupId) ) gmToRemove.add(gm);
+                }
+                delete gmToRemove;
             }
         } catch (Exception ex) {
             System.debug('Error deleting group members ' + ex.getMessage() + ' ' + ex.getStackTraceString());
